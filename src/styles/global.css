@@ -1,0 +1,19 @@
+/* Minimum height for all input fields */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+textarea,
+select {
+  min-height: 40px !important;
+}
+
+/* Mantine input components */
+.mantine-TextInput-input,
+.mantine-PasswordInput-input,
+.mantine-NumberInput-input,
+.mantine-Textarea-input,
+.mantine-Select-input,
+.mantine-ColorInput-input {
+  min-height: 40px !important;
+}

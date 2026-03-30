@@ -1,0 +1,26 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Minimum height for all input fields */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+textarea,
+select {
+  min-height: 40px !important;
+}
+
+/* Mantine input styling */
+:global(.mantine-TextInput-input),
+:global(.mantine-PasswordInput-input),
+:global(.mantine-NumberInput-input),
+:global(.mantine-Textarea-input),
+:global(.mantine-Select-input) {
+  min-height: 40px !important;
+}
