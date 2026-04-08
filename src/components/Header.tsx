@@ -1,24 +1,41 @@
 import {
   Group,
-  Button,
   Container,
   Menu,
   Avatar,
   Text,
   Box,
+  UnstyledButton,
+  useMantineColorScheme,
 } from "@mantine/core";
-import { IconLogout, IconSettings } from "@tabler/icons-react";
+import { useState } from "react";
+import {
+  IconLogout,
+  IconMoon,
+  IconSettings,
+  IconSun,
+} from "@tabler/icons-react";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
-import { logout } from "@/store/authSlice";
+import { logoutUser } from "@/store/authSlice";
 import { useNavigate } from "react-router-dom";
+import { useDisclosure } from "@mantine/hooks";
+import { ModalConfirm } from "./ModalConfirm";
 
 export const AppHeader = () => {
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { user } = useAppSelector((state) => state.auth);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [logoutOpened, { open: openLogout, close: closeLogout }] =
+    useDisclosure(false);
+  const displayName = user?.email.split("@")[0] ?? "User";
 
-  const handleLogout = () => {
-    dispatch(logout());
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    await dispatch(logoutUser());
+    setLogoutLoading(false);
+    closeLogout();
     navigate("/auth");
   };
 
@@ -51,33 +68,49 @@ export const AppHeader = () => {
           {user && (
             <Menu shadow="md" width={200}>
               <Menu.Target>
-                <Button variant="subtle" p={0}>
+                <UnstyledButton>
                   <Group gap="xs">
-                    <Avatar name={user.username} color="blue" radius="xl" />
-                    <div>
-                      <Text size="sm" fw={500}>
-                        {user.username}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {user.email}
-                      </Text>
-                    </div>
+                    <Avatar
+                      name={displayName}
+                      size="md"
+                      color="blue"
+                      radius="xl"
+                    />
+
+                    <Text size="md" c="dimmed">
+                      {user.email}
+                    </Text>
                   </Group>
-                </Button>
+                </UnstyledButton>
               </Menu.Target>
 
               <Menu.Dropdown>
                 <Menu.Item
-                  leftSection={<IconSettings size={14} />}
+                  leftSection={<IconSettings size={18} />}
                   onClick={() => navigate("/settings")}
                 >
                   Настройки
                 </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item
+                  leftSection={
+                    colorScheme !== "light" ? (
+                      <IconSun size={18} />
+                    ) : (
+                      <IconMoon size={18} />
+                    )
+                  }
+                  onClick={() =>
+                    setColorScheme(colorScheme === "light" ? "dark" : "light")
+                  }
+                >
+                  Смена темы
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
                   color="red"
                   leftSection={<IconLogout size={14} />}
-                  onClick={handleLogout}
+                  onClick={openLogout}
                 >
                   Выход
                 </Menu.Item>
@@ -86,6 +119,18 @@ export const AppHeader = () => {
           )}
         </Group>
       </Container>
+
+      <ModalConfirm
+        opened={logoutOpened}
+        onClose={closeLogout}
+        onConfirm={handleLogout}
+        title="Выход из аккаунта"
+        message="Вы действительно хотите выйти из аккаунта?"
+        description="Для продолжения работы потребуется повторный вход."
+        confirmText="Выйти"
+        confirmColor="red"
+        loading={logoutLoading}
+      />
     </Box>
   );
 };

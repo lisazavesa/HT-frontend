@@ -1,33 +1,32 @@
 import { useEffect, useState } from "react";
 import {
   Container,
-  Card,
   Button,
   Group,
   Stack,
   Text,
-  ActionIcon,
   SimpleGrid,
   Center,
   Loader,
   Modal,
-  Flex,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/ru";
-import {
-  IconEdit,
-  IconTrash,
-  IconPlus,
-  IconCheckupList,
-  IconHistory,
-  IconCirclePlus,
-} from "@tabler/icons-react";
+import { IconPlus, IconCheckupList } from "@tabler/icons-react";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
-import { fetchHabits, deleteHabit, upsertHabitLog } from "@/store/habitsSlice";
+import {
+  fetchHabits,
+  deleteHabit,
+  upsertHabitLog,
+  updateHabit,
+  fetchHabitLogsByDateRange,
+} from "@/store/habitsSlice";
+import { fetchHabitStats } from "@/store/statsSlice";
 import { Habit } from "@/types";
 import { useDisclosure } from "@mantine/hooks";
 import { HabitLogsModal } from "./HabitLogsModal";
+import { HabbitTemplate } from "./HabbitTemplate";
+import { ModalConfirm } from "./ModalConfirm";
 
 // Format date to YYYY-MM-DD in local timezone (not UTC)
 function formatDateToLocal(date: Date): string {
@@ -35,6 +34,19 @@ function formatDateToLocal(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getLastWeekRange() {
+  const to = new Date();
+  to.setHours(0, 0, 0, 0);
+
+  const from = new Date(to);
+  from.setDate(from.getDate() - 6);
+
+  return {
+    from: formatDateToLocal(from),
+    to: formatDateToLocal(to),
+  };
 }
 
 export const HabitsList = ({
@@ -45,26 +57,87 @@ export const HabitsList = ({
   onCreateHabit?: () => void;
 }) => {
   const dispatch = useAppDispatch();
-  const { habits, loading } = useAppSelector((state) => state.habits);
+  const { habits, habitLogs, loading } = useAppSelector(
+    (state) => state.habits,
+  );
+  const { statsByHabit } = useAppSelector((state) => state.stats);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [habitToDelete, setHabitToDelete] = useState<Habit | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toggleHabitId, setToggleHabitId] = useState<number | null>(null);
   const [opened, { open, close }] = useDisclosure(false);
   const [logsOpened, { open: openLogs, close: closeLogs }] =
+    useDisclosure(false);
+  const [deleteOpened, { open: openDelete, close: closeDelete }] =
     useDisclosure(false);
 
   useEffect(() => {
     dispatch(fetchHabits());
   }, [dispatch]);
 
-  const handleDeleteHabit = (id: number) => {
-    if (window.confirm("Вы уверены?")) {
-      dispatch(deleteHabit(id));
+  useEffect(() => {
+    if (!habits.length) {
+      return;
+    }
+
+    const { from, to } = getLastWeekRange();
+
+    habits.forEach((habit) => {
+      dispatch(fetchHabitStats({ habitId: habit.id }));
+      dispatch(fetchHabitLogsByDateRange({ habitId: habit.id, from, to }));
+    });
+  }, [dispatch, habits]);
+
+  const handleDeleteHabit = (habit: Habit) => {
+    setHabitToDelete(habit);
+    openDelete();
+  };
+
+  const handleCloseDelete = () => {
+    setHabitToDelete(null);
+    closeDelete();
+  };
+
+  const handleRecordHabit = (habit: Habit) => {
+    setSelectedHabit(habit);
+    setSelectedDate(new Date());
+    open();
+  };
+
+  const confirmDeleteHabit = async () => {
+    if (!habitToDelete) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    const result = await dispatch(deleteHabit(habitToDelete.id));
+    setDeleteLoading(false);
+
+    if (deleteHabit.fulfilled.match(result)) {
+      handleCloseDelete();
     }
   };
 
   const handleShowLogs = (habit: Habit) => {
     setSelectedHabit(habit);
     openLogs();
+  };
+
+  const handleToggleActive = async (habit: Habit) => {
+    setToggleHabitId(habit.id);
+
+    const result = await dispatch(
+      updateHabit({ id: habit.id, data: { isActive: !habit.isActive } }),
+    );
+
+    if (updateHabit.fulfilled.match(result)) {
+      dispatch(fetchHabitStats({ habitId: habit.id }));
+      const { from, to } = getLastWeekRange();
+      dispatch(fetchHabitLogsByDateRange({ habitId: habit.id, from, to }));
+    }
+
+    setToggleHabitId(null);
   };
 
   if (loading && habits.length === 0) {
@@ -100,80 +173,18 @@ export const HabitsList = ({
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
           {habits.map((habit) => (
-            <Card
+            <HabbitTemplate
               key={habit.id}
-              withBorder
-              radius="lg"
-              p="lg"
-              style={{
-                transition: "box-shadow 0.2s ease, transform 0.2s ease",
-                cursor: "pointer",
-              }}
-            >
-              <Card.Section withBorder inheritPadding py="sm">
-                <Stack gap={0}>
-                  <Text fw={700} size="lg">
-                    {habit.title}
-                  </Text>
-
-                  <Text h={20} size="sm" c="dimmed">
-                    {habit.description}
-                  </Text>
-                </Stack>
-              </Card.Section>
-
-              <Group grow py="sm">
-                <Button
-                  variant="light"
-                  leftSection={<IconCirclePlus size={18} />}
-                  onClick={() => {
-                    setSelectedHabit(habit);
-                    setSelectedDate(new Date());
-                    open();
-                  }}
-                  fullWidth
-                >
-                  Записать
-                </Button>
-                <Button
-                  variant="light"
-                  onClick={() => handleShowLogs(habit)}
-                  leftSection={<IconHistory size={18} />}
-                  fullWidth
-                >
-                  Логи
-                </Button>
-              </Group>
-
-              <Card.Section withBorder inheritPadding py="sm">
-                <Flex justify="space-between" align="center">
-                  <Text size="sm" c="dimmed">
-                    {new Date(habit.createdAt).toLocaleDateString("ru-RU", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </Text>
-
-                  <Group justify="flex-end">
-                    <ActionIcon
-                      variant="light"
-                      color="blue"
-                      onClick={() => onEditHabit?.(habit)}
-                    >
-                      <IconEdit size={14} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="light"
-                      color="red"
-                      onClick={() => handleDeleteHabit(habit.id)}
-                    >
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Group>
-                </Flex>
-              </Card.Section>
-            </Card>
+              habit={habit}
+              stats={statsByHabit[habit.id]}
+              onRecordHabit={handleRecordHabit}
+              onShowLogs={handleShowLogs}
+              onEditHabit={onEditHabit}
+              onDeleteHabit={handleDeleteHabit}
+              weekLogs={habitLogs[habit.id] || []}
+              onToggleActive={handleToggleActive}
+              toggleLoading={toggleHabitId === habit.id}
+            />
           ))}
         </SimpleGrid>
       )}
@@ -197,10 +208,10 @@ export const HabitsList = ({
                 variant="light"
                 color="green"
                 disabled={!selectedDate}
-                onClick={() => {
+                onClick={async () => {
                   if (!selectedDate) return;
                   const dateStr = formatDateToLocal(selectedDate);
-                  dispatch(
+                  const result = await dispatch(
                     upsertHabitLog({
                       habitId: selectedHabit.id,
                       data: {
@@ -209,6 +220,17 @@ export const HabitsList = ({
                       },
                     }),
                   );
+                  if (upsertHabitLog.fulfilled.match(result)) {
+                    dispatch(fetchHabitStats({ habitId: selectedHabit.id }));
+                    const { from, to } = getLastWeekRange();
+                    dispatch(
+                      fetchHabitLogsByDateRange({
+                        habitId: selectedHabit.id,
+                        from,
+                        to,
+                      }),
+                    );
+                  }
                   close();
                 }}
               >
@@ -218,10 +240,10 @@ export const HabitsList = ({
                 variant="light"
                 color="red"
                 disabled={!selectedDate}
-                onClick={() => {
+                onClick={async () => {
                   if (!selectedDate) return;
                   const dateStr = formatDateToLocal(selectedDate);
-                  dispatch(
+                  const result = await dispatch(
                     upsertHabitLog({
                       habitId: selectedHabit.id,
                       data: {
@@ -230,6 +252,17 @@ export const HabitsList = ({
                       },
                     }),
                   );
+                  if (upsertHabitLog.fulfilled.match(result)) {
+                    dispatch(fetchHabitStats({ habitId: selectedHabit.id }));
+                    const { from, to } = getLastWeekRange();
+                    dispatch(
+                      fetchHabitLogsByDateRange({
+                        habitId: selectedHabit.id,
+                        from,
+                        to,
+                      }),
+                    );
+                  }
                   close();
                 }}
               >
@@ -247,6 +280,22 @@ export const HabitsList = ({
         opened={logsOpened}
         onClose={closeLogs}
         habit={selectedHabit}
+      />
+
+      <ModalConfirm
+        opened={deleteOpened}
+        onClose={handleCloseDelete}
+        onConfirm={confirmDeleteHabit}
+        title="Подтверждение удаления"
+        message={
+          <>
+            Удалить привычку <b>{habitToDelete?.title}</b>?
+          </>
+        }
+        description="Это действие необратимо. Будут удалены и все связанные логи."
+        confirmText="Удалить"
+        confirmColor="red"
+        loading={deleteLoading}
       />
     </Container>
   );

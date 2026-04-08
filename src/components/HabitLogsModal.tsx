@@ -17,6 +17,7 @@ import {
 } from "@mantine/core";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
 import { fetchHabitLogs, deleteHabitLog } from "@/store/habitsSlice";
+import { fetchHabitStats } from "@/store/statsSlice";
 import {
   IconTrash,
   IconTable,
@@ -223,9 +224,14 @@ export const HabitLogsModal = ({
     }
   }, [opened, habit, dispatch]);
 
-  const handleDeleteLog = (logDate: string) => {
+  const handleDeleteLog = async (logDate: string) => {
     if (habit && window.confirm("Удалить запись?")) {
-      dispatch(deleteHabitLog({ habitId: habit.id, date: logDate }));
+      const result = await dispatch(
+        deleteHabitLog({ habitId: habit.id, date: logDate }),
+      );
+      if (deleteHabitLog.fulfilled.match(result)) {
+        dispatch(fetchHabitStats({ habitId: habit.id }));
+      }
     }
   };
 
