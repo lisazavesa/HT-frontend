@@ -1,5 +1,11 @@
 import api from "./instance";
-import { User, LoginRequest, RegisterRequest, AuthResponse } from "@/types";
+import {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  AuthStatusResponse,
+  LogoutResponse,
+} from "@/types";
 
 export const authApi = {
   login: (data: LoginRequest) => api.post<AuthResponse>("/auth/login", data),
@@ -7,5 +13,9 @@ export const authApi = {
   register: (data: RegisterRequest) =>
     api.post<AuthResponse>("/auth/register", data),
 
-  getProfile: () => api.get<User>("/auth/profile"),
+  refresh: () => api.post<AuthResponse>("/auth/refresh"),
+
+  logout: () => api.post<LogoutResponse>("/auth/logout"),
+
+  getStatus: () => api.get<AuthStatusResponse>("/auth/status"),
 };
